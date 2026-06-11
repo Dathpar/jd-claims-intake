@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>John Deere Claims Intake &amp; AIG Form Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --green:#367c2b; --green-dark:#2a6322; --yellow:#ffde00; --ink:#1d2b18;
+  --bg:#f4f6f3; --card:#ffffff; --line:#d9e0d4; --muted:#6b7a63; --red:#c0392b;
+  --amber:#e08a00; --blue:#2c5f9e;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+header.app{background:var(--green);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+header.app .logo{font-weight:800;font-size:17px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+header.app .logo .leaf{background:var(--yellow);color:var(--green-dark);border-radius:5px;padding:2px 7px;font-size:13px}
+header.app nav{display:flex;gap:4px;margin-left:10px}
+header.app nav button{background:transparent;border:none;color:#dff0d8;padding:8px 14px;border-radius:7px;
+  cursor:pointer;font-size:14px;font-weight:600}
+header.app nav button.active{background:rgba(255,255,255,.18);color:#fff}
+header.app .spacer{flex:1}
+header.app .gear{background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:8px;
+  cursor:pointer;font-size:16px}
+.wrap{max-width:1080px;margin:22px auto;padding:0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card h2{margin:0 0 4px;font-size:16px}
+.card h2 .step{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+  background:var(--green);color:#fff;font-size:13px;margin-right:9px}
+.card .sub{color:var(--muted);margin:0 0 16px;font-size:13px}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:26px;text-align:center;color:var(--muted);
+  cursor:pointer;transition:.15s;background:#fbfdfa}
+.drop.drag{border-color:var(--green);background:#eef6ea;color:var(--green-dark)}
+.drop strong{color:var(--ink)}
+.btn{background:var(--green);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;
+  cursor:pointer}
+.btn:hover{background:var(--green-dark)}
+.btn:disabled{background:#a9b7a2;cursor:not-allowed}
+.btn.secondary{background:#fff;color:var(--green-dark);border:1px solid var(--green)}
+.btn.ghost{background:#eef2ec;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:var(--red)}
+.btn.sm{padding:5px 11px;font-size:12.5px}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.field{flex:1 1 220px;min-width:180px;margin-bottom:12px}
+.field.full{flex-basis:100%}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px;text-transform:uppercase;
+  letter-spacing:.3px}
+.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+  font-size:14px;font-family:inherit;background:#fff}
+.field textarea{min-height:70px;resize:vertical}
+.field.missing input,.field.missing select,.field.missing textarea{border-color:var(--amber);background:#fff9ec}
+.field .flag{color:var(--amber);font-size:11px;font-weight:700;margin-left:6px}
+.field .matched{color:var(--green);font-size:11px;font-weight:700;margin-left:6px}
+.section-title{font-size:13px;font-weight:800;color:var(--green-dark);text-transform:uppercase;letter-spacing:.5px;
+  border-bottom:2px solid var(--line);padding-bottom:6px;margin:22px 0 12px}
+.hidden{display:none!important}
+.banner{padding:11px 14px;border-radius:8px;margin-bottom:14px;font-size:13.5px}
+.banner.info{background:#eaf3fb;border:1px solid #b9d4ee;color:var(--blue)}
+.banner.warn{background:#fff6e5;border:1px solid #f0d49a;color:#946100}
+.banner.err{background:#fdecea;border:1px solid #f1b8b1;color:var(--red)}
+.banner.ok{background:#eaf6e6;border:1px solid #b7dcab;color:var(--green-dark)}
+.spinner{display:inline-block;width:16px;height:16px;border:2.5px solid #ffffff70;border-top-color:#fff;border-radius:50%;
+  animation:spin .7s linear infinite;vertical-align:-3px;margin-right:7px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{background:#fff;border-radius:12px;padding:24px;max-width:520px;width:92%;max-height:88vh;overflow:auto}
+.modal h3{margin:0 0 14px}
+.filelist{list-style:none;padding:0;margin:10px 0 0}
+.filelist li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+  margin-bottom:7px;background:#fbfdfa}
+.filelist li .name{flex:1;font-size:13px;word-break:break-all}
+.filelist li .new{font-size:11.5px;color:var(--green-dark);font-weight:600}
+.chip{display:inline-block;background:#eef2ec;border-radius:20px;padding:2px 10px;font-size:12px;margin-left:6px}
+table.ref{width:100%;border-collapse:collapse;font-size:13px}
+table.ref th,table.ref td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+table.ref th{background:#eef2ec;position:sticky;top:0}
+table.ref tr:nth-child(even){background:#fafbf9}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar input.search{flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--line);border-radius:7px}
+.scroll{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.muted{color:var(--muted)}
+.kpi{display:inline-block;background:#eef2ec;border-radius:8px;padding:4px 10px;font-size:12.5px;margin-right:8px}
+small.help{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
+.aig-preview{border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto;background:#fff;padding:4px}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="logo"><span class="leaf">JD</span> Claims Intake &amp; AIG Builder</div>
+  <nav>
+    <button id="tab-claim" class="active" onclick="showTab('claim')">New Claim</button>
+    <button id="tab-ref" onclick="showTab('ref')">Reference Lists</button>
+  </nav>
+  <div class="spacer"></div>
+  <button class="gear" title="Settings" onclick="openSettings()">&#9881;</button>
+</header>
+
+<!-- ===================== NEW CLAIM ===================== -->
+<div class="wrap" id="view-claim">
+
+  <div id="keyWarn" class="banner warn hidden">
+    No Claude API key set yet. Click the &#9881; settings button (top-right) to add one so the app can read uploaded reports.
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card">
+    <h2><span class="step">1</span>Upload the accident report</h2>
+    <p class="sub">PDF, Word (.docx), or a photo/scan of a handwritten report. The app reads it with Claude and fills in what it can.</p>
+    <div class="drop" id="reportDrop">
+      <p style="margin:0 0 6px"><strong>Drop the report here</strong> or click to choose a file</p>
+      <p style="margin:0;font-size:12.5px">Accepted: .pdf, .docx, .jpg, .png</p>
+    </div>
+    <input type="file" id="reportInput" class="hidden" accept=".pdf,.docx,.jpg,.jpeg,.png">
+    <div id="reportChosen" class="hidden" style="margin-top:12px"></div>
+    <div style="margin-top:14px">
+      <button class="btn" id="readBtn" disabled onclick="readReport()">Read report &amp; extract details</button>
+    </div>
+    <div id="extractMsg" style="margin-top:12px"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card hidden" id="formCard">
+    <h2><span class="step">2</span>Review &amp; complete the claim details</h2>
+    <p class="sub">Fields the app couldn't read are flagged <span class="flag">NEEDS INPUT</span>. Driver and unit pull from your reference lists.</p>
+    <div id="formArea"></div>
+    <div style="margin-top:6px">
+      <button class="btn secondary" onclick="document.getElementById('mediaCard').scrollIntoView({behavior:'smooth'})">Next: add photos &amp; files &darr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card hidden" id="mediaCard">
+    <h2><span class="step">3</span>Add photos, videos &amp; supporting files</h2>
+    <p class="sub">These get renamed automatically and attached to the claim package and Outlook draft.</p>
+    <div class="row">
+      <div style="flex:1 1 200px">
+        <label class="muted" style="font-size:12px;font-weight:600">Photos</label>
+        <div class="drop" onclick="document.getElementById('photoInput').click()">Add photos</div>
+        <input type="file" id="photoInput" class="hidden" accept="image/*" multiple>
+      </div>
+      <div style="flex:1 1 200px">
+        <label class="muted" style="font-size:12px;font-weight:600">Videos</label>
+        <div class="drop" onclick="document.getElementById('videoInput').click()">Add videos</div>
+        <input type="file" id="videoInput" class="hidden" accept="video/*" multiple>
+      </div>
+      <div style="flex:1 1 200px">
+        <label class="muted" style="font-size:12px;font-weight:600">Other documents</label>
+        <div class="drop" onclick="document.getElementById('docInput').click()">Add documents</div>
+        <input type="file" id="docInput" class="hidden" multiple>
+      </div>
+    </div>
+    <ul class="filelist" id="mediaList"></ul>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="card hidden" id="outputCard">
+    <h2><span class="step">4</span>Generate the claim package</h2>
+    <p class="sub">Builds the completed AIG PDF, renames every file, writes the claim summary, and prepares an Outlook draft &mdash; all zipped for your Downloads.</p>
+    <div class="field">
+      <label>Send claim to (email draft recipient)</label>
+      <input type="text" id="emailTo" value="RMClaimsCA@aig.com">
+    </div>
+    <button class="btn" id="genBtn" onclick="generatePackage()">Build claim package</button>
+    <div id="genMsg" style="margin-top:14px"></div>
+    <div id="downloads" style="margin-top:14px"></div>
+    <div id="aigPreviewWrap" class="hidden" style="margin-top:16px">
+      <div class="section-title">AIG form preview</div>
+      <div class="aig-preview" id="aigPreview"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== REFERENCE LISTS ===================== -->
+<div class="wrap hidden" id="view-ref">
+  <div class="card">
+    <h2>Employee reference list</h2>
+    <p class="sub">Drivers auto-fill from this list. <span id="empCount" class="kpi"></span> Stored only in this browser &mdash; never uploaded.</p>
+    <div class="toolbar">
+      <input class="search" id="empSearch" placeholder="Search name / DL number..." oninput="renderEmployees()">
+      <button class="btn sm" onclick="editEmployee(-1)">+ Add employee</button>
+      <button class="btn sm ghost" onclick="document.getElementById('empImport').click()">Import Excel/JSON</button>
+      <button class="btn sm ghost" onclick="exportRef('employees')">Export JSON</button>
+      <input type="file" id="empImport" class="hidden" accept=".xlsx,.xls,.json">
+    </div>
+    <div class="scroll">
+      <table class="ref" id="empTable"><thead><tr>
+        <th>Name</th><th>DoB</th><th>DL Number</th><th>DL Juris.</th><th>Phone</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Vehicle reference list (Penske units)</h2>
+    <p class="sub">Units auto-fill VIN, year/make/model, plate. <span id="vehCount" class="kpi"></span> Stored only in this browser.</p>
+    <div class="toolbar">
+      <input class="search" id="vehSearch" placeholder="Search unit # / VIN / plate..." oninput="renderVehicles()">
+      <button class="btn sm" onclick="editVehicle(-1)">+ Add vehicle</button>
+      <button class="btn sm ghost" onclick="document.getElementById('vehImport').click()">Import Excel/JSON</button>
+      <button class="btn sm ghost" onclick="exportRef('vehicles')">Export JSON</button>
+      <input type="file" id="vehImport" class="hidden" accept=".xlsx,.xls,.json">
+    </div>
+    <div class="scroll">
+      <table class="ref" id="vehTable"><thead><tr>
+        <th>Unit #</th><th>VIN</th><th>Year</th><th>Make</th><th>Model</th><th>Plate</th><th>Juris.</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<script>
+/* ============================================================
+   STATE & STORAGE
+   ============================================================ */
+const LS = {
+  key:'jdc_api_key', model:'jdc_model', emps:'jdc_employees', vehs:'jdc_vehicles'
+};
+let state = {
+  apiKey: localStorage.getItem(LS.key) || '',
+  model: localStorage.getItem(LS.model) || 'claude-sonnet-4-6',
+  employees: load(LS.emps, []),
+  vehicles: load(LS.vehs, []),
+  report: null,        // {name, mime, b64, kind}
+  extracted: null,     // claim object
+  media: { photos:[], videos:[], docs:[] }
+};
+function load(k,def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
+function saveEmps(){ localStorage.setItem(LS.emps, JSON.stringify(state.employees)); }
+function saveVehs(){ localStorage.setItem(LS.vehs, JSON.stringify(state.vehicles)); }
+
+/* ============================================================
+   NAV / SETTINGS
+   ============================================================ */
+function showTab(t){
+  document.getElementById('view-claim').classList.toggle('hidden', t!=='claim');
+  document.getElementById('view-ref').classList.toggle('hidden', t!=='ref');
+  document.getElementById('tab-claim').classList.toggle('active', t==='claim');
+  document.getElementById('tab-ref').classList.toggle('active', t==='ref');
+  if(t==='ref'){ renderEmployees(); renderVehicles(); }
+}
+function openSettings(){
+  document.getElementById('modalRoot').innerHTML = `
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+   <div class="modal">
+    <h3>Settings</h3>
+    <div class="field full">
+      <label>Claude API key</label>
+      <input type="password" id="setKey" value="${escAttr(state.apiKey)}" placeholder="sk-ant-...">
+      <small class="help">Stored only in this browser (localStorage). Get one at console.anthropic.com. Used to read uploaded reports.</small>
+    </div>
+    <div class="field full">
+      <label>Model</label>
+      <input type="text" id="setModel" value="${escAttr(state.model)}">
+      <small class="help">Default claude-sonnet-4-6. Use claude-opus-4-8 for tougher handwriting (higher cost).</small>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveSettings()">Save</button>
+    </div>
+   </div>
+  </div>`;
+}
+function saveSettings(){
+  state.apiKey = document.getElementById('setKey').value.trim();
+  state.model = document.getElementById('setModel').value.trim() || 'claude-sonnet-4-6';
+  localStorage.setItem(LS.key, state.apiKey);
+  localStorage.setItem(LS.model, state.model);
+  closeModal(); refreshKeyWarn();
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function refreshKeyWarn(){ document.getElementById('keyWarn').classList.toggle('hidden', !!state.apiKey); }
+
+/* ============================================================
+   REPORT UPLOAD
+   ============================================================ */
+const reportDrop=document.getElementById('reportDrop');
+const reportInput=document.getElementById('reportInput');
+reportDrop.addEventListener('click',()=>reportInput.click());
+['dragover','dragenter'].forEach(e=>reportDrop.addEventListener(e,ev=>{ev.preventDefault();reportDrop.classList.add('drag');}));
+['dragleave','drop'].forEach(e=>reportDrop.addEventListener(e,ev=>{ev.preventDefault();reportDrop.classList.remove('drag');}));
+reportDrop.addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) handleReport(ev.dataTransfer.files[0]); });
+reportInput.addEventListener('change',ev=>{ if(ev.target.files[0]) handleReport(ev.target.files[0]); });
+
+async function handleReport(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  let kind='other';
+  if(ext==='pdf')kind='pdf'; else if(ext==='docx')kind='docx';
+  else if(['jpg','jpeg','png'].includes(ext))kind='image';
+  else { alert('Please upload a PDF, Word .docx, or image.'); return; }
+  const b64=await fileToB64(file);
+  state.report={name:file.name, mime:file.type, b64, kind};
+  const c=document.getElementById('reportChosen');
+  c.classList.remove('hidden');
+  c.innerHTML=`<div class="banner info" style="margin:0">Selected: <strong>${escHtml(file.name)}</strong> (${(file.size/1024/1024).toFixed(2)} MB)</div>`;
+  document.getElementById('readBtn').disabled = !state.apiKey ? true : false;
+  if(!state.apiKey){ document.getElementById('extractMsg').innerHTML='<div class="banner warn">Add your Claude API key in settings (&#9881;) to enable reading.</div>'; }
+}
+
+function fileToB64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader();
+    r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); });
+}
+
+/* ============================================================
+   EXTRACTION (Claude)
+   ============================================================ */
+const FIELD_DEFS = [
+  ['dateOfLoss','Date of loss','date'],
+  ['timeOfLoss','Time of loss','text'],
+  ['reportDate','Report date','date'],
+  ['lossLocation','Loss location','text'],
+  ['driverName','Driver name','text'],
+  ['driverAddress','Driver address','text'],
+  ['driverPhone','Driver phone','text'],
+  ['driverLicenseNumber',"Driver's license number",'text'],
+  ['driverLicenseJurisdiction','License jurisdiction','text'],
+  ['driverDob','Driver date of birth','date'],
+  ['unitNumber','Unit number','text'],
+  ['vehicleYear','Vehicle year','text'],
+  ['vehicleMake','Vehicle make','text'],
+  ['vehicleModel','Vehicle model','text'],
+  ['vin','VIN / serial number','text'],
+  ['plateNumber','Plate number','text'],
+  ['plateJurisdiction','Plate jurisdiction','text'],
+  ['vehicleAreaOfDamage','Vehicle area of damage','text'],
+  ['driverInjury','Driver injury','text'],
+  ['injuryStatus','Injury status (Yes/No)','text'],
+  ['roadConditions','Road conditions','text'],
+  ['weatherConditions','Weather conditions','text'],
+  ['towStatus','Tow status','text'],
+  ['policeInvestigator','Police investigator name','text'],
+  ['policeDivision','Police division number','text'],
+  ['policeOccurrence','Police occurrence / report number','text'],
+  ['tp1','Third party #1 details','textarea'],
+  ['tp2','Third party #2 details','textarea'],
+  ['descriptionOfLoss','Description of loss','textarea'],
+];
+
+async function readReport(){
+  const btn=document.getElementById('readBtn'); const msg=document.getElementById('extractMsg');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Reading report...';
+  msg.innerHTML='';
+  try{
+    const content = await buildReportContent();
+    content.push({type:'text', text: EXTRACTION_PROMPT});
+    const resp = await callClaude(content);
+    const data = parseJSON(resp);
+    state.extracted = data;
+    applyMatches(data);
+    renderForm(data);
+    document.getElementById('formCard').classList.remove('hidden');
+    document.getElementById('mediaCard').classList.remove('hidden');
+    document.getElementById('outputCard').classList.remove('hidden');
+    msg.innerHTML='<div class="banner ok">Report read. Review the details below &mdash; flagged fields need your input.</div>';
+    document.getElementById('formCard').scrollIntoView({behavior:'smooth'});
+  }catch(err){
+    console.error(err);
+    msg.innerHTML=`<div class="banner err">Couldn't read the report: ${escHtml(err.message||String(err))}</div>`;
+  }finally{
+    btn.disabled=false; btn.textContent='Read report & extract details';
+  }
+}
+
+async function buildReportContent(){
+  const r=state.report;
+  if(r.kind==='pdf'){
+    return [{type:'document', source:{type:'base64', media_type:'application/pdf', data:r.b64}}];
+  }
+  if(r.kind==='image'){
+    const mt = r.mime || 'image/jpeg';
+    return [{type:'image', source:{type:'base64', media_type:mt, data:r.b64}}];
+  }
+  // docx: extract text + any embedded images
+  const bytes = Uint8Array.from(atob(r.b64), c=>c.charCodeAt(0));
+  const blocks=[];
+  const imgs=[];
+  const res = await mammoth.convertToHtml({arrayBuffer:bytes.buffer},{
+    convertImage: mammoth.images.imgElement(function(image){
+      return image.read("base64").then(function(b64){ imgs.push({mime:image.contentType||'image/png',data:b64}); return {src:""}; });
+    })
+  });
+  const text=(res.value||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  if(text) blocks.push({type:'text', text:'REPORT TEXT:\n'+text});
+  imgs.slice(0,20).forEach(im=>blocks.push({type:'image', source:{type:'base64', media_type:im.mime, data:im.data}}));
+  if(!blocks.length) throw new Error('Could not read any content from the Word file.');
+  return blocks;
+}
+
+const EXTRACTION_PROMPT = `You are reading a vehicle accident / incident report for John Deere Canada (a trucking fleet). Extract the facts into JSON.
+
+Return ONLY a JSON object (no markdown, no commentary) with these exact keys. Use null for anything not present or not legible. Do NOT guess or invent values.
+
+{
+ "dateOfLoss": "YYYY-MM-DD or null",
+ "timeOfLoss": "string or null",
+ "reportDate": "YYYY-MM-DD or null",
+ "lossLocation": "string or null",
+ "driverName": "string or null",
+ "driverAddress": "string or null",
+ "driverPhone": "string or null",
+ "driverLicenseNumber": "string or null",
+ "driverLicenseJurisdiction": "province/state or null",
+ "driverDob": "YYYY-MM-DD or null",
+ "unitNumber": "the truck/tractor unit number or null",
+ "vehicleYear": "string or null",
+ "vehicleMake": "string or null",
+ "vehicleModel": "string or null",
+ "vin": "string or null",
+ "plateNumber": "string or null",
+ "plateJurisdiction": "string or null",
+ "vehicleAreaOfDamage": "string or null",
+ "driverInjury": "string or null",
+ "injuryStatus": "Yes/No or null",
+ "roadConditions": "string or null",
+ "weatherConditions": "string or null",
+ "towStatus": "string or null",
+ "policeInvestigator": "string or null",
+ "policeDivision": "string or null",
+ "policeOccurrence": "string or null",
+ "tp1": "all third-party #1 details as one readable string, or null",
+ "tp2": "all third-party #2 details as one readable string, or null",
+ "descriptionOfLoss": "a clear narrative of what happened, including road & weather if mentioned, or null"
+}`;
+
+async function callClaude(content){
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'content-type':'application/json',
+      'x-api-key':state.apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify({
+      model: state.model,
+      max_tokens: 2000,
+      messages:[{role:'user', content}]
+    })
+  });
+  if(!res.ok){
+    let detail=''; try{ const j=await res.json(); detail=j.error?.message||JSON.stringify(j);}catch(e){ detail=await res.text(); }
+    throw new Error(`API ${res.status}: ${detail}`);
+  }
+  const j=await res.json();
+  return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+}
+
+function parseJSON(text){
+  let t=text.trim();
+  const m=t.match(/\{[\s\S]*\}/);
+  if(m) t=m[0];
+  try{ return JSON.parse(t); }catch(e){ throw new Error('Model did not return valid JSON. Raw: '+text.slice(0,200)); }
+}
+
+/* ============================================================
+   MATCHING against reference lists
+   ============================================================ */
+function norm(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9]/g,''); }
+function applyMatches(d){
+  d._driverMatch=null; d._vehicleMatch=null;
+  // Driver
+  if(d.driverName){
+    const target=norm(d.driverName);
+    let best=null,bestScore=0;
+    state.employees.forEach(e=>{
+      const f=norm(e.fullName);
+      let score=0;
+      if(f===target)score=100;
+      else if(f.includes(target)||target.includes(f))score=80;
+      else { // last-name + first-initial
+        const en=e.fullName.toLowerCase().split(/\s+/), dn=d.driverName.toLowerCase().split(/\s+/);
+        if(en.length&&dn.length&&en[en.length-1]===dn[dn.length-1])score=60;
+      }
+      if(score>bestScore){bestScore=score;best=e;}
+    });
+    if(best&&bestScore>=60){
+      d._driverMatch=best;
+      if(!d.driverDob&&best.dob)d.driverDob=isoDate(best.dob);
+      if(!d.driverLicenseNumber&&best.dlNumber)d.driverLicenseNumber=best.dlNumber;
+      if(!d.driverLicenseJurisdiction&&best.dlJurisdiction)d.driverLicenseJurisdiction=best.dlJurisdiction;
+      if(!d.driverPhone&&best.phone)d.driverPhone=best.phone;
+      if(!d.driverAddress&&best.address)d.driverAddress=best.address;
+    }
+  }
+  // Vehicle
+  if(d.unitNumber){
+    const t=norm(d.unitNumber);
+    let v=state.vehicles.find(x=>norm(x.unitNumber)===t)
+       || state.vehicles.find(x=>norm(x.fleetCode)===t)
+       || (d.vin? state.vehicles.find(x=>norm(x.vin)===norm(d.vin)) : null);
+    if(v){
+      d._vehicleMatch=v;
+      if(!d.vin&&v.vin)d.vin=v.vin;
+      if(!d.vehicleYear&&v.year)d.vehicleYear=v.year;
+      if(!d.vehicleMake&&v.make)d.vehicleMake=v.make;
+      if(!d.vehicleModel&&v.model)d.vehicleModel=v.model;
+      if(!d.plateNumber&&v.plateNumber)d.plateNumber=v.plateNumber;
+      if(!d.plateJurisdiction&&v.plateJurisdiction)d.plateJurisdiction=v.plateJurisdiction;
+    }
+  } else if(d.vin){
+    const v=state.vehicles.find(x=>norm(x.vin)===norm(d.vin));
+    if(v){ d._vehicleMatch=v; d.unitNumber=v.unitNumber;
+      if(!d.vehicleYear)d.vehicleYear=v.year; if(!d.vehicleMake)d.vehicleMake=v.make;
+      if(!d.vehicleModel)d.vehicleModel=v.model; if(!d.plateNumber)d.plateNumber=v.plateNumber;
+      if(!d.plateJurisdiction)d.plateJurisdiction=v.plateJurisdiction; }
+  }
+}
+function isoDate(s){
+  if(!s)return '';
+  const m=String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  const m2=String(s).match(/(\d{4})-(\d{2})-(\d{2})/); if(m2)return m2[0];
+  return s;
+}
+
+/* ============================================================
+   FORM RENDER
+   ============================================================ */
+function renderForm(d){
+  const groups=[
+    ['Loss details',['dateOfLoss','timeOfLoss','reportDate','lossLocation']],
+    ['Driver',['driverName','driverAddress','driverPhone','driverLicenseNumber','driverLicenseJurisdiction','driverDob']],
+    ['Vehicle',['unitNumber','vehicleYear','vehicleMake','vehicleModel','vin','plateNumber','plateJurisdiction','vehicleAreaOfDamage']],
+    ['Injuries & conditions',['driverInjury','injuryStatus','roadConditions','weatherConditions','towStatus']],
+    ['Police',['policeInvestigator','policeDivision','policeOccurrence']],
+    ['Third parties',['tp1','tp2']],
+    ['Narrative',['descriptionOfLoss']],
+  ];
+  const def=Object.fromEntries(FIELD_DEFS.map(f=>[f[0],f]));
+  let html='';
+  // match banners
+  if(d._driverMatch) html+=`<div class="banner ok" style="margin-bottom:10px">Driver matched to <strong>${escHtml(d._driverMatch.fullName)}</strong> &mdash; DoB &amp; DL auto-filled.</div>`;
+  else if(d.driverName) html+=`<div class="banner warn" style="margin-bottom:10px">Driver "<strong>${escHtml(d.driverName)}</strong>" not found in employee list. Pick from the dropdown or fill manually.</div>`;
+  if(d._vehicleMatch) html+=`<div class="banner ok" style="margin-bottom:10px">Unit matched to <strong>${escHtml(d._vehicleMatch.unitNumber)}</strong> (${escHtml(d._vehicleMatch.make)} ${escHtml(d._vehicleMatch.model)}) &mdash; VIN &amp; plate auto-filled.</div>`;
+  else if(d.unitNumber) html+=`<div class="banner warn" style="margin-bottom:10px">Unit "<strong>${escHtml(d.unitNumber)}</strong>" not found. Pick from the dropdown or fill manually.</div>`;
+
+  // driver & unit pickers
+  html+=`<div class="row">
+    <div class="field"><label>Match driver from list</label>${driverSelect(d._driverMatch)}</div>
+    <div class="field"><label>Match unit from list</label>${unitSelect(d._vehicleMatch)}</div>
+  </div>`;
+
+  groups.forEach(([title,keys])=>{
+    html+=`<div class="section-title">${title}</div><div class="row">`;
+    keys.forEach(k=>{
+      const [id,label,type]=def[k];
+      const val=d[k]==null?'':d[k];
+      const missing=(val===''||val===null);
+      const cls='field'+(['descriptionOfLoss','tp1','tp2'].includes(k)?' full':'')+(missing?' missing':'');
+      const flag=missing?'<span class="flag">NEEDS INPUT</span>':'';
+      let input;
+      if(type==='textarea') input=`<textarea id="f_${id}" oninput="onField('${id}',this.value)">${escHtml(val)}</textarea>`;
+      else input=`<input id="f_${id}" type="${type==='date'?'text':'text'}" value="${escAttr(val)}" placeholder="${type==='date'?'YYYY-MM-DD':''}" oninput="onField('${id}',this.value)">`;
+      html+=`<div class="${cls}" id="fw_${id}"><label>${label}${flag}</label>${input}</div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById('formArea').innerHTML=html;
+}
+function driverSelect(sel){
+  let o='<option value="">— none / manual —</option>';
+  state.employees.forEach((e,i)=>{ o+=`<option value="${i}" ${sel&&sel.fullName===e.fullName?'selected':''}>${escHtml(e.fullName)}</option>`; });
+  return `<select onchange="pickDriver(this.value)">${o}</select>`;
+}
+function unitSelect(sel){
+  let o='<option value="">— none / manual —</option>';
+  state.vehicles.forEach((v,i)=>{ o+=`<option value="${i}" ${sel&&sel.unitNumber===v.unitNumber?'selected':''}>${escHtml(v.unitNumber)} — ${escHtml(v.make)} ${escHtml(v.model)} (${escHtml(v.vin)})</option>`; });
+  return `<select onchange="pickUnit(this.value)">${o}</select>`;
+}
+function pickDriver(i){
+  const d=state.extracted; if(i===''){d._driverMatch=null; renderForm(d); return;}
+  const e=state.employees[+i]; d._driverMatch=e;
+  d.driverName=e.fullName; if(e.dob)d.driverDob=isoDate(e.dob); if(e.dlNumber)d.driverLicenseNumber=e.dlNumber;
+  if(e.dlJurisdiction)d.driverLicenseJurisdiction=e.dlJurisdiction; if(e.phone)d.driverPhone=e.phone; if(e.address)d.driverAddress=e.address;
+  renderForm(d);
+}
+function pickUnit(i){
+  const d=state.extracted; if(i===''){d._vehicleMatch=null; renderForm(d); return;}
+  const v=state.vehicles[+i]; d._vehicleMatch=v;
+  d.unitNumber=v.unitNumber; d.vin=v.vin; d.vehicleYear=v.year; d.vehicleMake=v.make; d.vehicleModel=v.model;
+  d.plateNumber=v.plateNumber; d.plateJurisdiction=v.plateJurisdiction; renderForm(d);
+}
+function onField(id,val){
+  state.extracted[id]=val;
+  const w=document.getElementById('fw_'+id);
+  if(w){ w.classList.toggle('missing', val.trim()===''); }
+}
+
+/* ============================================================
+   MEDIA UPLOADS
+   ============================================================ */
+['photoInput','videoInput','docInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',ev=>{
+    const cat=id==='photoInput'?'photos':id==='videoInput'?'videos':'docs';
+    [...ev.target.files].forEach(f=>state.media[cat].push(f));
+    ev.target.value=''; renderMedia();
+  });
+});
+function renderMedia(){
+  const ul=document.getElementById('mediaList'); ul.innerHTML='';
+  const cats=[['photos','Photo'],['videos','Video'],['docs','Doc']];
+  let any=false;
+  cats.forEach(([cat,label])=>{
+    state.media[cat].forEach((f,i)=>{ any=true;
+      const li=document.createElement('li');
+      li.innerHTML=`<span class="chip">${label}</span><span class="name">${escHtml(f.name)}</span>
+        <span class="muted">${(f.size/1024/1024).toFixed(2)} MB</span>
+        <button class="btn sm danger" onclick="removeMedia('${cat}',${i})">Remove</button>`;
+      ul.appendChild(li);
+    });
+  });
+  if(!any) ul.innerHTML='<li class="muted" style="border:none;background:none">No files added yet.</li>';
+}
+function removeMedia(cat,i){ state.media[cat].splice(i,1); renderMedia(); }
+
+/* ============================================================
+   PACKAGE GENERATION
+   ============================================================ */
+function lastName(name){
+  if(!name)return 'Unknown';
+  const p=name.trim().split(/\s+/); return clean(p[p.length-1]||'Unknown');
+}
+function clean(s){ return (s||'').replace(/[^A-Za-z0-9]/g,'')||'NA'; }
+function fmtDate(s){ const iso=isoDate(s); const m=iso.match(/\d{4}-\d{2}-\d{2}/); return m?m[0]:new Date().toISOString().slice(0,10); }
+
+async function generatePackage(){
+  const d=state.extracted; const msg=document.getElementById('genMsg'); const btn=document.getElementById('genBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Building package...'; msg.innerHTML='';
+  try{
+    const ln=lastName(d.driverName), unit=clean(d.unitNumber||'NoUnit'), dt=fmtDate(d.dateOfLoss);
+    const base=`${ln}_${unit}_${dt}`;
+    const folder=`Claims/${base}/`;
+    const zip=new JSZip();
+
+    // 1. AIG form PDF
+    const aigEl=buildAigHtml(d);
+    document.getElementById('aigPreview').innerHTML=aigEl.outerHTML;
+    document.getElementById('aigPreviewWrap').classList.remove('hidden');
+    const aigName=`AIG_Claim_${base}.pdf`;
+    const aigBlob=await html2pdf().set({margin:[10,10,10,10],html2canvas:{scale:2},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}})
+      .from(aigEl).outputPdf('blob');
+    zip.file(folder+aigName, aigBlob);
+
+    // 2. Summary PDF
+    const sumEl=buildSummaryHtml(d);
+    const sumName=`Claim_Summary_${base}.pdf`;
+    const sumBlob=await html2pdf().set({margin:[12,12,12,12],jsPDF:{unit:'mm',format:'letter'}}).from(sumEl).outputPdf('blob');
+    zip.file(folder+sumName, sumBlob);
+
+    // 3. Media (renamed)
+    const attachments=[{name:aigName,blob:aigBlob,mime:'application/pdf'},{name:sumName,blob:sumBlob,mime:'application/pdf'}];
+    const counters={photos:0,videos:0,docs:0};
+    const labelMap={photos:'Photo',videos:'Video',docs:'SupportingDoc'};
+    for(const cat of ['photos','videos','docs']){
+      for(const f of state.media[cat]){
+        counters[cat]++;
+        const ext=(f.name.split('.').pop()||'bin').toLowerCase();
+        const nm=`${labelMap[cat]}_${String(counters[cat]).padStart(2,'0')}_${base}.${ext}`;
+        const buf=await f.arrayBuffer();
+        zip.file(folder+nm, buf);
+        attachments.push({name:nm, blob:new Blob([buf],{type:f.type||'application/octet-stream'}), mime:f.type||'application/octet-stream'});
+      }
+    }
+
+    // 4. EML Outlook draft (with attachments)
+    const to=document.getElementById('emailTo').value.trim()||'RMClaimsCA@aig.com';
+    const eml=await buildEml(d, to, attachments, base);
+    const emlName=`Outlook_Draft_${base}.eml`;
+    zip.file(folder+emlName, eml);
+
+    // 5. Zip download
+    const zipBlob=await zip.generateAsync({type:'blob'});
+    const zipName=`Claim_${base}.zip`;
+
+    const dl=document.getElementById('downloads');
+    dl.innerHTML=`<div class="banner ok">Package ready &mdash; <strong>${attachments.length}</strong> files in <code>${escHtml(folder)}</code></div>`;
+    addDownload(dl,'⬇ Download full claim package (ZIP)',zipBlob,zipName,true);
+    addDownload(dl,'⬇ Outlook draft only (.eml — double-click to open in Outlook)',new Blob([eml],{type:'message/rfc822'}),emlName,false);
+    addDownload(dl,'⬇ AIG form only (PDF)',aigBlob,aigName,false);
+    msg.innerHTML='';
+  }catch(err){
+    console.error(err); msg.innerHTML=`<div class="banner err">Failed to build package: ${escHtml(err.message||String(err))}</div>`;
+  }finally{
+    btn.disabled=false; btn.textContent='Build claim package';
+  }
+}
+function addDownload(container,label,blob,filename,primary){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename; a.className='btn'+(primary?'':' secondary'); a.textContent=label;
+  a.style.display='inline-block'; a.style.marginRight='10px'; a.style.marginBottom='10px'; a.style.textDecoration='none';
+  container.appendChild(a);
+}
+
+/* ---- AIG form HTML (faithful to the AIG Canada reporting form) ---- */
+function v(x){ return (x==null||x==='')?'<span style="color:#b00">[ — ]</span>':escHtml(x); }
+function buildAigHtml(d){
+  const wrap=document.createElement('div');
+  wrap.style.cssText='font-family:Arial,sans-serif;font-size:11px;color:#000;width:7.4in';
+  const cell='border:1px solid #444;padding:4px 6px;vertical-align:top';
+  const lbl='font-weight:bold;background:#eee;width:170px;'+cell;
+  wrap.innerHTML=`
+   <div style="text-align:center;border-bottom:3px solid #367c2b;padding-bottom:6px;margin-bottom:8px">
+     <div style="font-size:15px;font-weight:bold;color:#367c2b">AIG CANADA — RISK MANAGEMENT REPORTING FORM</div>
+     <div style="font-size:12px">John Deere Canada and Associated Companies</div>
+     <div style="font-size:10px;color:#444">Send to: RMClaimsCA@aig.com &nbsp;|&nbsp; Policy No. RMBA 1245025 &nbsp;|&nbsp; AIG contact: Emily Feindel 1-800-387-4481</div>
+   </div>
+   <table style="border-collapse:collapse;width:100%">
+     <tr><td style="${lbl}">Date of Loss</td><td style="${cell}">${v(d.dateOfLoss)} ${d.timeOfLoss?('&nbsp; '+escHtml(d.timeOfLoss)):''}</td>
+         <td style="${lbl}">Report Date</td><td style="${cell}">${v(d.reportDate)}</td></tr>
+     <tr><td style="${lbl}">Loss Location</td><td style="${cell}" colspan="3">${v(d.lossLocation)}</td></tr>
+     <tr><td style="${lbl}">Policy Number</td><td style="${cell}">RMBA 1245025</td>
+         <td style="${lbl}">Coverage</td><td style="${cell}">Automobile</td></tr>
+   </table>
+   <div style="background:#367c2b;color:#fff;font-weight:bold;padding:3px 6px;margin-top:8px">INSURED INFORMATION</div>
+   <table style="border-collapse:collapse;width:100%">
+     <tr><td style="${lbl}">Unit Name / Address</td><td style="${cell}" colspan="3">John Deere Canada ULC</td></tr>
+     <tr><td style="${lbl}">Driver Name &amp; Address</td><td style="${cell}" colspan="3">${v(d.driverName)}${d.driverAddress?(' — '+escHtml(d.driverAddress)):''}</td></tr>
+     <tr><td style="${lbl}">Driver Phone</td><td style="${cell}">${v(d.driverPhone)}</td>
+         <td style="${lbl}">Driver's License #</td><td style="${cell}">${v(d.driverLicenseNumber)}</td></tr>
+     <tr><td style="${lbl}">Driver Date of Birth</td><td style="${cell}">${v(d.driverDob)}</td>
+         <td style="${lbl}">License Jurisdiction</td><td style="${cell}">${v(d.driverLicenseJurisdiction)}</td></tr>
+     <tr><td style="${lbl}">Vehicle (Year/Make/Model)</td><td style="${cell}">${v([d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' '))}</td>
+         <td style="${lbl}">Serial Number (VIN)</td><td style="${cell}">${v(d.vin)}</td></tr>
+     <tr><td style="${lbl}">Unit Number</td><td style="${cell}">${v(d.unitNumber)}</td>
+         <td style="${lbl}">Plate Number &amp; Jurisdiction</td><td style="${cell}">${v([d.plateNumber,d.plateJurisdiction].filter(Boolean).join(' / '))}</td></tr>
+     <tr><td style="${lbl}">Vehicle Area of Damage</td><td style="${cell}" colspan="3">${v(d.vehicleAreaOfDamage)}</td></tr>
+     <tr><td style="${lbl}">Driver Injury</td><td style="${cell}" colspan="3">${v(d.driverInjury)} ${d.injuryStatus?('('+escHtml(d.injuryStatus)+')'):''}</td></tr>
+     <tr><td style="${lbl}">Vehicle Type</td><td style="${cell}" colspan="3">Heavy Commercial</td></tr>
+   </table>
+   <div style="background:#367c2b;color:#fff;font-weight:bold;padding:3px 6px;margin-top:8px">THIRD PARTY INFORMATION</div>
+   <table style="border-collapse:collapse;width:100%">
+     <tr><td style="${lbl}">Third Party #1</td><td style="${cell}" colspan="3">${v(d.tp1)}</td></tr>
+     <tr><td style="${lbl}">Third Party #2</td><td style="${cell}" colspan="3">${v(d.tp2)}</td></tr>
+   </table>
+   <div style="background:#367c2b;color:#fff;font-weight:bold;padding:3px 6px;margin-top:8px">POLICE INFORMATION</div>
+   <table style="border-collapse:collapse;width:100%">
+     <tr><td style="${lbl}">Investigator Name</td><td style="${cell}">${v(d.policeInvestigator)}</td>
+         <td style="${lbl}">Division Number</td><td style="${cell}">${v(d.policeDivision)}</td></tr>
+     <tr><td style="${lbl}">Occurrence / Report #</td><td style="${cell}" colspan="3">${v(d.policeOccurrence)}</td></tr>
+   </table>
+   <div style="background:#367c2b;color:#fff;font-weight:bold;padding:3px 6px;margin-top:8px">DESCRIPTION OF LOSS (road &amp; weather conditions)</div>
+   <table style="border-collapse:collapse;width:100%">
+     <tr><td style="${cell}">${v(d.descriptionOfLoss)}<br><br>
+        <b>Road conditions:</b> ${v(d.roadConditions)} &nbsp; <b>Weather:</b> ${v(d.weatherConditions)} &nbsp; <b>Tow:</b> ${v(d.towStatus)}</td></tr>
+   </table>
+   <div style="font-size:9px;color:#666;margin-top:8px">[ — ] indicates information not yet available. Generated ${new Date().toLocaleString()}.</div>`;
+  return wrap;
+}
+function buildSummaryHtml(d){
+  const ln=lastName(d.driverName), unit=clean(d.unitNumber||'NoUnit'), dt=fmtDate(d.dateOfLoss);
+  const wrap=document.createElement('div');
+  wrap.style.cssText='font-family:Arial,sans-serif;font-size:12px;color:#000;width:7.4in';
+  wrap.innerHTML=`
+    <h2 style="color:#367c2b;border-bottom:2px solid #367c2b;padding-bottom:6px">Claim Summary — ${escHtml(ln)} / Unit ${escHtml(unit)} / ${escHtml(dt)}</h2>
+    <p>${[
+      ['Driver',d.driverName],['Unit number',d.unitNumber],['Date/time of loss',[d.dateOfLoss,d.timeOfLoss].filter(Boolean).join(' ')],
+      ['Location',d.lossLocation],['Vehicle',[d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' ')],
+      ['VIN',d.vin],['Plate',[d.plateNumber,d.plateJurisdiction].filter(Boolean).join(' / ')],
+      ['Injuries',d.injuryStatus||d.driverInjury],['Police report #',d.policeOccurrence],['Tow status',d.towStatus],
+      ['Third party',d.tp1]
+    ].map(([k,val])=>`<b>${k}:</b> ${escHtml(val||'—')}`).join('<br>')}</p>
+    <h3 style="color:#367c2b">What happened</h3>
+    <p>${escHtml(d.descriptionOfLoss||'—')}</p>
+    <p style="color:#666;font-size:10px">Road: ${escHtml(d.roadConditions||'—')} · Weather: ${escHtml(d.weatherConditions||'—')}</p>`;
+  return wrap;
+}
+
+/* ---- EML (Outlook draft with attachments) ---- */
+function blobToB64(blob){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); }); }
+function b64wrap(s){ return s.replace(/.{76}/g,'$&\r\n'); }
+async function buildEml(d, to, attachments, base){
+  const subj=`Auto Claim — John Deere Canada — ${d.driverName||'Driver'} / Unit ${d.unitNumber||'N/A'} / ${fmtDate(d.dateOfLoss)}`;
+  const body=
+`Hello,
+
+Please find attached a new automobile claim for John Deere Canada (Policy RMBA 1245025).
+
+KEY DETAILS
+  Driver:            ${d.driverName||'—'}
+  Unit number:       ${d.unitNumber||'—'}
+  Date/time of loss: ${[d.dateOfLoss,d.timeOfLoss].filter(Boolean).join(' ')||'—'}
+  Location:          ${d.lossLocation||'—'}
+  Vehicle:           ${[d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' ')||'—'}
+  VIN:               ${d.vin||'—'}
+  Plate:             ${[d.plateNumber,d.plateJurisdiction].filter(Boolean).join(' / ')||'—'}
+  Injuries:          ${d.injuryStatus||d.driverInjury||'—'}
+  Police report #:   ${d.policeOccurrence||'—'}
+  Tow status:        ${d.towStatus||'—'}
+  Third party:       ${d.tp1||'None reported'}
+
+EVENT SUMMARY
+${d.descriptionOfLoss||'—'}
+  Road conditions:    ${d.roadConditions||'—'}
+  Weather conditions: ${d.weatherConditions||'—'}
+
+Attached: completed AIG reporting form, claim summary, and supporting photos/videos/documents.
+
+Thank you.`;
+  const bnd='----JDCLAIM'+Date.now();
+  let m='';
+  m+=`To: ${to}\r\n`;
+  m+=`Subject: ${subj}\r\n`;
+  m+=`X-Unsent: 1\r\n`;               // tells Outlook this is a draft to open in compose mode
+  m+=`MIME-Version: 1.0\r\n`;
+  m+=`Content-Type: multipart/mixed; boundary="${bnd}"\r\n\r\n`;
+  m+=`--${bnd}\r\nContent-Type: text/plain; charset="utf-8"\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${body}\r\n\r\n`;
+  for(const a of attachments){
+    const b64=await blobToB64(a.blob);
+    m+=`--${bnd}\r\nContent-Type: ${a.mime}; name="${a.name}"\r\n`;
+    m+=`Content-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename="${a.name}"\r\n\r\n`;
+    m+=b64wrap(b64)+`\r\n\r\n`;
+  }
+  m+=`--${bnd}--\r\n`;
+  return new Blob([m],{type:'message/rfc822'});
+}
+
+/* ============================================================
+   REFERENCE LISTS — render + CRUD + import/export
+   ============================================================ */
+function renderEmployees(){
+  const q=norm(document.getElementById('empSearch').value);
+  const tb=document.querySelector('#empTable tbody'); tb.innerHTML='';
+  document.getElementById('empCount').textContent=state.employees.length+' employees';
+  state.employees.forEach((e,i)=>{
+    if(q && !(norm(e.fullName).includes(q)||norm(e.dlNumber).includes(q))) return;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${escHtml(e.fullName)}</td><td>${escHtml(e.dob||'')}</td><td>${escHtml(e.dlNumber||'')}</td>
+      <td>${escHtml(e.dlJurisdiction||'')}</td><td>${escHtml(e.phone||'')}</td>
+      <td style="white-space:nowrap"><button class="btn sm ghost" onclick="editEmployee(${i})">Edit</button>
+      <button class="btn sm danger" onclick="delEmployee(${i})">×</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function renderVehicles(){
+  const q=norm(document.getElementById('vehSearch').value);
+  const tb=document.querySelector('#vehTable tbody'); tb.innerHTML='';
+  document.getElementById('vehCount').textContent=state.vehicles.length+' units';
+  state.vehicles.forEach((v,i)=>{
+    if(q && !(norm(v.unitNumber).includes(q)||norm(v.vin).includes(q)||norm(v.plateNumber).includes(q))) return;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${escHtml(v.unitNumber)}</td><td>${escHtml(v.vin)}</td><td>${escHtml(v.year||'')}</td>
+      <td>${escHtml(v.make||'')}</td><td>${escHtml(v.model||'')}</td><td>${escHtml(v.plateNumber||'')}</td><td>${escHtml(v.plateJurisdiction||'')}</td>
+      <td style="white-space:nowrap"><button class="btn sm ghost" onclick="editVehicle(${i})">Edit</button>
+      <button class="btn sm danger" onclick="delVehicle(${i})">×</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function delEmployee(i){ if(confirm('Remove '+state.employees[i].fullName+'?')){ state.employees.splice(i,1); saveEmps(); renderEmployees(); } }
+function delVehicle(i){ if(confirm('Remove unit '+state.vehicles[i].unitNumber+'?')){ state.vehicles.splice(i,1); saveVehs(); renderVehicles(); } }
+
+function editEmployee(i){
+  const e=i>=0?state.employees[i]:{fullName:'',dob:'',dlNumber:'',dlJurisdiction:'',phone:'',address:''};
+  const F=[['fullName','Full name'],['dob','Date of birth (MM/DD/YYYY)'],['dlNumber','DL number'],['dlJurisdiction','DL jurisdiction'],['phone','Phone'],['address','Address']];
+  document.getElementById('modalRoot').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
+    <h3>${i>=0?'Edit':'Add'} employee</h3>
+    ${F.map(([k,l])=>`<div class="field full"><label>${l}</label><input id="e_${k}" value="${escAttr(e[k]||'')}"></div>`).join('')}
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="saveEmployee(${i})">Save</button></div></div></div>`;
+}
+function saveEmployee(i){
+  const get=k=>document.getElementById('e_'+k).value.trim();
+  const obj={fullName:get('fullName'),dob:get('dob'),dlNumber:get('dlNumber'),dlJurisdiction:get('dlJurisdiction'),phone:get('phone'),address:get('address')};
+  const p=obj.fullName.split(/\s+/); obj.firstName=p[0]||''; obj.lastName=p[p.length-1]||'';
+  if(!obj.fullName){ alert('Name required'); return; }
+  if(i>=0)state.employees[i]=obj; else state.employees.push(obj);
+  saveEmps(); closeModal(); renderEmployees();
+}
+function editVehicle(i){
+  const v=i>=0?state.vehicles[i]:{unitNumber:'',fleetCode:'',vin:'',year:'',make:'',model:'',plateNumber:'',plateJurisdiction:'',leasingCompany:'Penske'};
+  const F=[['unitNumber','Unit number'],['vin','VIN'],['year','Year'],['make','Make'],['model','Model'],['plateNumber','Plate number'],['plateJurisdiction','Plate jurisdiction'],['fleetCode','Fleet code (optional)'],['leasingCompany','Leasing company']];
+  document.getElementById('modalRoot').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">
+    <h3>${i>=0?'Edit':'Add'} vehicle</h3>
+    ${F.map(([k,l])=>`<div class="field full"><label>${l}</label><input id="v_${k}" value="${escAttr(v[k]||'')}"></div>`).join('')}
+    <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn" onclick="saveVehicle(${i})">Save</button></div></div></div>`;
+}
+function saveVehicle(i){
+  const get=k=>document.getElementById('v_'+k).value.trim();
+  const obj={unitNumber:get('unitNumber'),vin:get('vin'),year:get('year'),make:get('make'),model:get('model'),
+    plateNumber:get('plateNumber'),plateJurisdiction:get('plateJurisdiction'),fleetCode:get('fleetCode'),leasingCompany:get('leasingCompany')};
+  if(!obj.unitNumber){ alert('Unit number required'); return; }
+  if(i>=0)state.vehicles[i]=obj; else state.vehicles.push(obj);
+  saveVehs(); closeModal(); renderVehicles();
+}
+
+/* ---- import / export ---- */
+document.getElementById('empImport').addEventListener('change',e=>importRef(e,'employees'));
+document.getElementById('vehImport').addEventListener('change',e=>importRef(e,'vehicles'));
+async function importRef(ev,type){
+  const f=ev.target.files[0]; if(!f)return; ev.target.value='';
+  const ext=(f.name.split('.').pop()||'').toLowerCase();
+  try{
+    let rows;
+    if(ext==='json'){ rows=JSON.parse(await f.text()); }
+    else {
+      const data=new Uint8Array(await f.arrayBuffer());
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      rows=type==='employees'?mapEmpRows(rows):mapVehRows(rows);
+    }
+    if(!Array.isArray(rows)||!rows.length){ alert('No rows found.'); return; }
+    if(confirm(`Import ${rows.length} ${type}? OK = replace current list, Cancel = merge/append.`)){
+      if(type==='employees')state.employees=rows; else state.vehicles=rows;
+    } else {
+      if(type==='employees')state.employees=state.employees.concat(rows); else state.vehicles=state.vehicles.concat(rows);
+    }
+    if(type==='employees'){saveEmps();renderEmployees();} else {saveVehs();renderVehicles();}
+    alert('Imported '+rows.length+' '+type+'.');
+  }catch(err){ alert('Import failed: '+err.message); }
+}
+function pick(o,keys){ for(const k of keys){ for(const kk in o){ if(kk.toLowerCase().replace(/[^a-z0-9]/g,'')===k){ return o[kk]; } } } return ''; }
+function mapEmpRows(rows){
+  return rows.map(r=>{
+    const name=(pick(r,['employeenamefirstlast','employeename','name','fullname'])||'').toString().trim();
+    let dob=pick(r,['dobmmddyyyy','dob','dateofbirth']);
+    if(dob instanceof Date) dob=(dob.getMonth()+1+'/'+dob.getDate()+'/'+dob.getFullYear());
+    const p=name.split(/\s+/);
+    return {fullName:name,firstName:p[0]||'',lastName:p[p.length-1]||'',dob:(dob||'').toString(),
+      dlNumber:(pick(r,['dlnumber','licensenumber','dl'])||'').toString(),
+      dlJurisdiction:(pick(r,['dljurisdiction','licensestate','province'])||'').toString(),
+      phone:(pick(r,['phone','phonenumber'])||'').toString(),address:(pick(r,['address'])||'').toString()};
+  }).filter(e=>e.fullName);
+}
+function mapVehRows(rows){
+  return rows.map(r=>({
+    unitNumber:(pick(r,['penskeunit','unitnumber','unit','unit#'])||'').toString(),
+    fleetCode:(pick(r,['myunit','fleetcode'])||'').toString(),
+    vin:(pick(r,['vin','serialnumber'])||'').toString(),
+    year:(pick(r,['year'])||'').toString(),
+    make:(pick(r,['make'])||'').toString(),
+    model:(pick(r,['model'])||'').toString(),
+    plateNumber:(pick(r,['licensenumber','platenumber','plate'])||'').toString(),
+    plateJurisdiction:(pick(r,['licensestate','platejurisdiction','jurisdiction'])||'').toString(),
+    leasingCompany:(pick(r,['leasingcompany'])||'Penske').toString()
+  })).filter(v=>v.unitNumber||v.vin);
+}
+function exportRef(type){
+  const data=type==='employees'?state.employees:state.vehicles;
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=type+'.json'; a.click();
+}
+
+/* ============================================================
+   UTILS + INIT
+   ============================================================ */
+function escHtml(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escAttr(s){ return escHtml(s).replace(/'/g,'&#39;'); }
+
+async function trySeed(){
+  // Auto-load seed files if present next to index.html and lists are empty.
+  if(state.employees.length===0){
+    try{ const r=await fetch('employees.seed.json'); if(r.ok){ state.employees=await r.json(); saveEmps(); } }catch(e){}
+  }
+  if(state.vehicles.length===0){
+    try{ const r=await fetch('vehicles.seed.json'); if(r.ok){ state.vehicles=await r.json(); saveVehs(); } }catch(e){}
+  }
+}
+(async function init(){
+  await trySeed();
+  refreshKeyWarn(); renderMedia();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Never commit PII or source data to the public repo.
+# Employee/vehicle reference data lives in each user's browser, not in git.
+*.seed.json
+employees.json
+vehicles.json
+*.xlsx
+*.xls
+*.pdf
+*.docx
+Claims/
+.DS_Store
+Thumbs.db
