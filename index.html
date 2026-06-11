@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --green:#367c2b; --green-dark:#2a6322; --yellow:#ffde00; --ink:#1d2b18;
@@ -757,6 +758,116 @@ async function htmlToPdfBlob(el, opts){
   }
 }
 
+/* ---- AIG form drawn directly with jsPDF (reliable, no screenshotting) ---- */
+function buildAigPdf(d){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'letter'});
+  const pw=doc.internal.pageSize.getWidth(), ph=doc.internal.pageSize.getHeight();
+  const mL=12, mR=12, mT=12, cW=pw-mL-mR, labelW=54;
+  let y=mT;
+  try{ doc.addImage(LOGO,'PNG', mL, y, 52, 8.8); }catch(e){}
+  y+=11;
+  doc.setFont('helvetica','bold'); doc.setTextColor(54,124,43); doc.setFontSize(12.5);
+  doc.text('AIG CANADA — RISK MANAGEMENT REPORTING FORM', pw/2, y, {align:'center'}); y+=4.6;
+  doc.setTextColor(0,0,0); doc.setFont('helvetica','normal'); doc.setFontSize(9.5);
+  doc.text('John Deere Canada and Associated Companies', pw/2, y, {align:'center'}); y+=3.8;
+  doc.setFontSize(7.5); doc.setTextColor(70,70,70);
+  doc.text('Send to: RMClaimsCA@aig.com   |   Policy RMBA 1245025   |   AIG: Emily Feindel 1-800-387-4481', pw/2, y, {align:'center'}); y+=2.6;
+  doc.setDrawColor(54,124,43); doc.setLineWidth(0.6); doc.line(mL,y,pw-mR,y); y+=4;
+  doc.setTextColor(0,0,0);
+
+  function ensure(h){ if(y+h>ph-mT){ doc.addPage(); y=mT; } }
+  function sectionBar(title){
+    ensure(8);
+    doc.setFillColor(54,124,43); doc.rect(mL,y,cW,6,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text(title, mL+2, y+4.1); y+=6; doc.setTextColor(0,0,0);
+  }
+  function row(label, value){
+    const v=(value==null||value==='')?'[ — ]':String(value);
+    doc.setFontSize(9);
+    const valW=cW-labelW;
+    const lines=doc.splitTextToSize(v, valW-4);
+    const rowH=Math.max(7, lines.length*4.0+3);
+    ensure(rowH);
+    doc.setDrawColor(120,120,120); doc.setLineWidth(0.1);
+    doc.rect(mL,y,labelW,rowH); doc.rect(mL+labelW,y,valW,rowH);
+    doc.setFont('helvetica','bold'); doc.setTextColor(40,40,40);
+    doc.text(doc.splitTextToSize(label,labelW-3), mL+1.5, y+4);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(v==='[ — ]'?176:0, v==='[ — ]'?0:0, 0);
+    doc.text(lines, mL+labelW+2, y+4);
+    doc.setTextColor(0,0,0); y+=rowH;
+  }
+  row('Date of Loss',[d.dateOfLoss,d.timeOfLoss].filter(Boolean).join('   '));
+  row('Report Date',d.reportDate);
+  row('Loss Location',d.lossLocation);
+  row('Policy Number','RMBA 1245025');
+  sectionBar('INSURED INFORMATION');
+  row('Unit Name / Address','John Deere Canada ULC');
+  row('Driver Name & Address',[d.driverName,d.driverAddress].filter(Boolean).join(' — '));
+  row('Driver Phone',d.driverPhone);
+  row("Driver's License #",d.driverLicenseNumber);
+  row('Driver Date of Birth',d.driverDob);
+  row('License Jurisdiction',d.driverLicenseJurisdiction);
+  row('Vehicle (Year/Make/Model)',[d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' '));
+  row('Serial Number (VIN)',d.vin);
+  row('Unit Number',d.unitNumber);
+  row('Plate Number & Jurisdiction',[d.plateNumber,d.plateJurisdiction].filter(Boolean).join(' / '));
+  row('Vehicle Area of Damage',d.vehicleAreaOfDamage);
+  row('Driver Injury',[d.driverInjury,d.injuryStatus?('('+d.injuryStatus+')'):''].filter(Boolean).join(' '));
+  row('Vehicle Type','Heavy Commercial');
+  sectionBar('THIRD PARTY INFORMATION');
+  row('Third Party #1',d.tp1);
+  row('Third Party #2',d.tp2);
+  sectionBar('POLICE INFORMATION');
+  row('Investigator Name',d.policeInvestigator);
+  row('Division Number',d.policeDivision);
+  row('Occurrence / Report #',d.policeOccurrence);
+  sectionBar('DESCRIPTION OF LOSS (road & weather conditions)');
+  row('Description',d.descriptionOfLoss);
+  row('Road conditions',d.roadConditions);
+  row('Weather',d.weatherConditions);
+  row('Tow status',d.towStatus);
+  doc.setFontSize(7); doc.setTextColor(110,110,110);
+  ensure(6); doc.text('[ — ] = information not yet available. Generated '+new Date().toLocaleString(), mL, y+3);
+  return doc.output('blob');
+}
+function buildSummaryPdf(d){
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter'});
+  const pw=doc.internal.pageSize.getWidth(), ph=doc.internal.pageSize.getHeight();
+  const mL=14, cW=pw-mL*2; let y=12;
+  try{ doc.addImage(LOGO,'PNG',mL,y,44,7.4); }catch(e){}
+  y+=12;
+  const ln=lastName(d.driverName), unit=clean(d.unitNumber||'NoUnit'), dt=fmtDate(d.dateOfLoss);
+  doc.setFont('helvetica','bold'); doc.setTextColor(54,124,43); doc.setFontSize(14);
+  doc.text(`Claim Summary — ${ln} / Unit ${unit} / ${dt}`, mL, y); y+=2;
+  doc.setDrawColor(54,124,43); doc.setLineWidth(0.6); doc.line(mL,y,pw-mL,y); y+=6;
+  doc.setTextColor(0,0,0); doc.setFontSize(10); doc.setFont('helvetica','normal');
+  [['Driver',d.driverName],['Unit number',d.unitNumber],['Date/time of loss',[d.dateOfLoss,d.timeOfLoss].filter(Boolean).join(' ')],
+   ['Location',d.lossLocation],['Vehicle',[d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' ')],
+   ['VIN',d.vin],['Plate',[d.plateNumber,d.plateJurisdiction].filter(Boolean).join(' / ')],
+   ['Injuries',d.injuryStatus||d.driverInjury],['Police report #',d.policeOccurrence],['Tow status',d.towStatus],
+   ['Third party',d.tp1]
+  ].forEach(([k,v])=>{
+    const val=(v==null||v==='')?'—':String(v);
+    if(y>ph-20){doc.addPage();y=16;}
+    doc.setFont('helvetica','bold'); doc.text(k+':', mL, y);
+    doc.setFont('helvetica','normal');
+    const lines=doc.splitTextToSize(val, cW-38);
+    doc.text(lines, mL+36, y); y+=Math.max(5.5, lines.length*5);
+  });
+  y+=3; if(y>ph-24){doc.addPage();y=16;}
+  doc.setFont('helvetica','bold'); doc.setTextColor(54,124,43); doc.text('What happened', mL, y); y+=5;
+  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  doc.splitTextToSize(d.descriptionOfLoss||'—', cW).forEach(l=>{ if(y>ph-16){doc.addPage();y=16;} doc.text(l,mL,y); y+=5; });
+  y+=2; if(y>ph-12){doc.addPage();y=16;}
+  doc.setFontSize(8); doc.setTextColor(110,110,110);
+  doc.text(`Road: ${d.roadConditions||'—'}   ·   Weather: ${d.weatherConditions||'—'}`, mL, y);
+  return doc.output('blob');
+}
+
 async function generatePackage(){
   const d=state.extracted; const msg=document.getElementById('genMsg'); const btn=document.getElementById('genBtn');
   // ---- Review gate: list blank + double-check fields before finalizing ----
@@ -780,18 +891,16 @@ async function generatePackage(){
     const folder=`Claims/${base}/`;
     const zip=new JSZip();
 
-    // 1. AIG form PDF
-    const aigEl=buildAigHtml(d);
-    document.getElementById('aigPreview').innerHTML=aigEl.outerHTML;
+    // 1. AIG form PDF (drawn directly with jsPDF — reliable, no screenshotting)
+    document.getElementById('aigPreview').innerHTML=buildAigHtml(d).outerHTML;
     document.getElementById('aigPreviewWrap').classList.remove('hidden');
     const aigName=`AIG_Claim_${base}.pdf`;
-    const aigBlob=await htmlToPdfBlob(aigEl,{margin:[10,10,10,10],html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}});
+    const aigBlob=buildAigPdf(d);
     zip.file(folder+aigName, aigBlob);
 
     // 2. Summary PDF
-    const sumEl=buildSummaryHtml(d);
     const sumName=`Claim_Summary_${base}.pdf`;
-    const sumBlob=await htmlToPdfBlob(sumEl,{margin:[12,12,12,12],html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'letter'}});
+    const sumBlob=buildSummaryPdf(d);
     zip.file(folder+sumName, sumBlob);
 
     // 3. Media (renamed)
