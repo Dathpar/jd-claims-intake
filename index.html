@@ -111,7 +111,9 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
 <div class="wrap" id="view-claim">
 
   <div id="keyWarn" class="banner info hidden">
-    No Claude API key set &mdash; that's fine. You can still use <strong>Enter manually</strong> (no key needed). Add a key in &#9881; settings only if you want Claude to auto-read handwriting.
+    No Claude API key set &mdash; that's fine. You can still use <strong>Enter manually</strong> (no key needed).
+    To let Claude auto-read handwriting, <button class="btn sm" style="margin-left:6px" onclick="openSettings()">Set up Claude key</button>
+    then paste your key and click <strong>Test connection</strong>.
   </div>
 
   <!-- STEP 1 -->
@@ -276,12 +278,45 @@ function openSettings(){
       <input type="text" id="setModel" value="${escAttr(state.model)}">
       <small class="help">Default claude-sonnet-4-6. Use claude-opus-4-8 for tougher handwriting (higher cost).</small>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
-      <button class="btn ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn" onclick="saveSettings()">Save</button>
+    <div id="testResult" style="margin:4px 0 10px"></div>
+    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:8px">
+      <button class="btn secondary" onclick="testKey()" id="testBtn">Test connection</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="saveSettings()">Save</button>
+      </div>
     </div>
    </div>
   </div>`;
+}
+async function testKey(){
+  const key=document.getElementById('setKey').value.trim();
+  const model=document.getElementById('setModel').value.trim()||'claude-sonnet-4-6';
+  const out=document.getElementById('testResult'); const btn=document.getElementById('testBtn');
+  if(!key){ out.innerHTML='<div class="banner warn" style="margin:0">Paste your key first, then click Test.</div>'; return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Testing...';
+  out.innerHTML='';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model, max_tokens:5, messages:[{role:'user', content:'ping'}]})
+    });
+    if(res.ok){
+      out.innerHTML='<div class="banner ok" style="margin:0">&#10003; Working! Your key is valid. Click <strong>Save</strong> to keep it.</div>';
+    }else{
+      let detail=''; try{const j=await res.json(); detail=j.error?.message||JSON.stringify(j);}catch(e){detail=await res.text();}
+      let hint='';
+      if(res.status===401) hint=' &mdash; the key looks wrong or was revoked. Double-check you copied it fully, or create a new one.';
+      else if(res.status===400 && /model/i.test(detail)) hint=' &mdash; the Model name may be off. Try claude-sonnet-4-6.';
+      else if(res.status===429 || /credit|billing/i.test(detail)) hint=' &mdash; the key is valid but the account needs billing/credits added in the Anthropic console.';
+      out.innerHTML=`<div class="banner err" style="margin:0">&#10007; Not working (${res.status})${hint}<br><span class="muted" style="font-size:11px">${escHtml(detail)}</span></div>`;
+    }
+  }catch(e){
+    out.innerHTML=`<div class="banner err" style="margin:0">&#10007; Couldn't reach Anthropic: ${escHtml(e.message||String(e))}</div>`;
+  }finally{
+    btn.disabled=false; btn.textContent='Test connection';
+  }
 }
 function saveSettings(){
   state.apiKey = document.getElementById('setKey').value.trim();
