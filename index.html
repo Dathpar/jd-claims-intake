@@ -17,16 +17,17 @@
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
-header.app{background:var(--green);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:14px;
-  position:sticky;top:0;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.15)}
-header.app .logo{font-weight:800;font-size:17px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
-header.app .logo .leaf{background:var(--yellow);color:var(--green-dark);border-radius:5px;padding:2px 7px;font-size:13px}
-header.app nav{display:flex;gap:4px;margin-left:10px}
-header.app nav button{background:transparent;border:none;color:#dff0d8;padding:8px 14px;border-radius:7px;
+header.app{background:#fff;color:var(--ink);padding:8px 18px;display:flex;align-items:center;gap:16px;
+  position:sticky;top:0;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.08);border-bottom:3px solid var(--green)}
+header.app .brand{height:34px;width:auto;display:block}
+header.app .title{font-weight:700;font-size:14px;color:var(--muted);border-left:1px solid var(--line);padding-left:14px}
+header.app nav{display:flex;gap:4px;margin-left:6px}
+header.app nav button{background:transparent;border:none;color:var(--muted);padding:8px 14px;border-radius:7px;
   cursor:pointer;font-size:14px;font-weight:600}
-header.app nav button.active{background:rgba(255,255,255,.18);color:#fff}
+header.app nav button:hover{background:#eef2ec}
+header.app nav button.active{background:var(--green);color:#fff}
 header.app .spacer{flex:1}
-header.app .gear{background:rgba(255,255,255,.15);border:none;color:#fff;width:34px;height:34px;border-radius:8px;
+header.app .gear{background:#eef2ec;border:1px solid var(--line);color:var(--green-dark);width:34px;height:34px;border-radius:8px;
   cursor:pointer;font-size:16px}
 .wrap{max-width:1080px;margin:22px auto;padding:0 18px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:18px;
@@ -56,7 +57,9 @@ header.app .gear{background:rgba(255,255,255,.15);border:none;color:#fff;width:3
   font-size:14px;font-family:inherit;background:#fff}
 .field textarea{min-height:70px;resize:vertical}
 .field.missing input,.field.missing select,.field.missing textarea{border-color:var(--amber);background:#fff9ec}
+.field.uncertain input,.field.uncertain select,.field.uncertain textarea{border-color:var(--blue);background:#eef4fb}
 .field .flag{color:var(--amber);font-size:11px;font-weight:700;margin-left:6px}
+.field .check{color:var(--blue);font-size:11px;font-weight:700;margin-left:6px}
 .field .matched{color:var(--green);font-size:11px;font-weight:700;margin-left:6px}
 .section-title{font-size:13px;font-weight:800;color:var(--green-dark);text-transform:uppercase;letter-spacing:.5px;
   border-bottom:2px solid var(--line);padding-bottom:6px;margin:22px 0 12px}
@@ -94,7 +97,8 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
 </head>
 <body>
 <header class="app">
-  <div class="logo"><span class="leaf">JD</span> Claims Intake &amp; AIG Builder</div>
+  <img class="brand" id="brandLogo" alt="CPC Logistics Canada">
+  <span class="title">Claims Intake &amp; AIG Builder</span>
   <nav>
     <button id="tab-claim" class="active" onclick="showTab('claim')">New Claim</button>
     <button id="tab-ref" onclick="showTab('ref')">Reference Lists</button>
@@ -106,8 +110,8 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
 <!-- ===================== NEW CLAIM ===================== -->
 <div class="wrap" id="view-claim">
 
-  <div id="keyWarn" class="banner warn hidden">
-    No Claude API key set yet. Click the &#9881; settings button (top-right) to add one so the app can read uploaded reports.
+  <div id="keyWarn" class="banner info hidden">
+    No Claude API key set &mdash; that's fine. You can still use <strong>Enter manually</strong> (no key needed). Add a key in &#9881; settings only if you want Claude to auto-read handwriting.
   </div>
 
   <!-- STEP 1 -->
@@ -120,9 +124,12 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
     </div>
     <input type="file" id="reportInput" class="hidden" accept=".pdf,.docx,.jpg,.jpeg,.png">
     <div id="reportChosen" class="hidden" style="margin-top:12px"></div>
-    <div style="margin-top:14px">
-      <button class="btn" id="readBtn" disabled onclick="readReport()">Read report &amp; extract details</button>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn" id="readBtn" disabled onclick="readReport()">Read with Claude &amp; auto-fill</button>
+      <span class="muted">or</span>
+      <button class="btn secondary" id="manualBtn" onclick="startManual()">Enter manually (no key needed)</button>
     </div>
+    <small class="help">Manual entry shows your report on screen and still auto-fills driver &amp; unit details from your reference lists. Best accuracy for handwriting.</small>
     <div id="extractMsg" style="margin-top:12px"></div>
   </div>
 
@@ -130,6 +137,13 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
   <div class="card hidden" id="formCard">
     <h2><span class="step">2</span>Review &amp; complete the claim details</h2>
     <p class="sub">Fields the app couldn't read are flagged <span class="flag">NEEDS INPUT</span>. Driver and unit pull from your reference lists.</p>
+    <div id="docPreviewWrap" class="hidden" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span class="section-title" style="margin:0;border:none">Your uploaded report</span>
+        <button class="btn sm ghost" onclick="toggleDocPreview()" id="docToggleBtn">Hide</button>
+      </div>
+      <div id="docPreview" class="aig-preview" style="max-height:520px"></div>
+    </div>
     <div id="formArea"></div>
     <div style="margin-top:6px">
       <button class="btn secondary" onclick="document.getElementById('mediaCard').scrollIntoView({behavior:'smooth'})">Next: add photos &amp; files &darr;</button>
@@ -220,6 +234,7 @@ a.link{color:var(--blue);cursor:pointer;text-decoration:underline}
 /* ============================================================
    STATE & STORAGE
    ============================================================ */
+const LOGO="data:image/png;base64,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";
 const LS = {
   key:'jdc_api_key', model:'jdc_model', emps:'jdc_employees', vehs:'jdc_vehicles'
 };
@@ -344,6 +359,54 @@ const FIELD_DEFS = [
   ['descriptionOfLoss','Description of loss','textarea'],
 ];
 
+function emptyClaim(){
+  const o={}; FIELD_DEFS.forEach(f=>o[f[0]]=''); o._driverMatch=null; o._vehicleMatch=null; return o;
+}
+async function startManual(){
+  const msg=document.getElementById('extractMsg');
+  const d=emptyClaim();
+  // Free narrative pre-fill for typed Word docs (no AI / no key)
+  if(state.report && state.report.kind==='docx'){
+    try{
+      const bytes=Uint8Array.from(atob(state.report.b64), c=>c.charCodeAt(0));
+      const res=await mammoth.extractRawText({arrayBuffer:bytes.buffer});
+      const txt=(res.value||'').trim();
+      if(txt) d.descriptionOfLoss=txt;
+    }catch(e){}
+  }
+  state.extracted=d;
+  renderForm(d);
+  await showDocPreview();
+  document.getElementById('formCard').classList.remove('hidden');
+  document.getElementById('mediaCard').classList.remove('hidden');
+  document.getElementById('outputCard').classList.remove('hidden');
+  msg.innerHTML='<div class="banner info">Manual entry ready. Your report is shown below for reference. Pick the driver &amp; unit to auto-fill their details, then complete the rest.</div>';
+  document.getElementById('formCard').scrollIntoView({behavior:'smooth'});
+}
+async function showDocPreview(){
+  const wrap=document.getElementById('docPreviewWrap'); const box=document.getElementById('docPreview');
+  const r=state.report;
+  if(!r){ wrap.classList.add('hidden'); return; }
+  if(r.kind==='image'){
+    box.innerHTML=`<img src="data:${r.mime||'image/jpeg'};base64,${r.b64}" style="max-width:100%;display:block">`;
+  } else if(r.kind==='pdf'){
+    box.innerHTML=`<embed src="data:application/pdf;base64,${r.b64}" type="application/pdf" style="width:100%;height:500px">`;
+  } else if(r.kind==='docx'){
+    try{
+      const bytes=Uint8Array.from(atob(r.b64), c=>c.charCodeAt(0));
+      const res=await mammoth.convertToHtml({arrayBuffer:bytes.buffer});
+      box.innerHTML=`<div style="padding:10px;font-size:13px">${res.value||'(no readable text)'}</div>`;
+    }catch(e){ box.innerHTML='<div style="padding:10px" class="muted">Could not preview this Word file.</div>'; }
+  }
+  wrap.classList.remove('hidden');
+  document.getElementById('docToggleBtn').textContent='Hide';
+  box.style.display='';
+}
+function toggleDocPreview(){
+  const box=document.getElementById('docPreview'); const btn=document.getElementById('docToggleBtn');
+  const hidden=box.style.display==='none';
+  box.style.display=hidden?'':'none'; btn.textContent=hidden?'Hide':'Show';
+}
 async function readReport(){
   const btn=document.getElementById('readBtn'); const msg=document.getElementById('extractMsg');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Reading report...';
@@ -359,6 +422,7 @@ async function readReport(){
     document.getElementById('formCard').classList.remove('hidden');
     document.getElementById('mediaCard').classList.remove('hidden');
     document.getElementById('outputCard').classList.remove('hidden');
+    await showDocPreview();
     msg.innerHTML='<div class="banner ok">Report read. Review the details below &mdash; flagged fields need your input.</div>';
     document.getElementById('formCard').scrollIntoView({behavior:'smooth'});
   }catch(err){
@@ -427,8 +491,11 @@ Return ONLY a JSON object (no markdown, no commentary) with these exact keys. Us
  "policeOccurrence": "string or null",
  "tp1": "all third-party #1 details as one readable string, or null",
  "tp2": "all third-party #2 details as one readable string, or null",
- "descriptionOfLoss": "a clear narrative of what happened, including road & weather if mentioned, or null"
-}`;
+ "descriptionOfLoss": "a clear narrative of what happened, including road & weather if mentioned, or null",
+ "_uncertain": ["array of the key names above that you are NOT confident about because the handwriting was hard to read, ambiguous, or you had to guess - so the user knows to double-check them. Empty array if all confident."]
+}
+
+IMPORTANT: Be honest in "_uncertain". Any value you partially guessed, or where handwriting was unclear, MUST be listed there so the user can verify it. It is better to flag a field than to let a wrong value slip through.`;
 
 async function callClaude(content){
   const res = await fetch('https://api.anthropic.com/v1/messages',{
@@ -535,7 +602,9 @@ function renderForm(d){
     ['Narrative',['descriptionOfLoss']],
   ];
   const def=Object.fromEntries(FIELD_DEFS.map(f=>[f[0],f]));
+  const uncertain=Array.isArray(d._uncertain)?d._uncertain:[];
   let html='';
+  if(uncertain.length) html+=`<div class="banner info" style="margin-bottom:10px"><strong>${uncertain.length}</strong> field(s) flagged <span class="check">⚠ DOUBLE-CHECK</span> by the reader &mdash; please verify them against the report.</div>`;
   // match banners
   if(d._driverMatch) html+=`<div class="banner ok" style="margin-bottom:10px">Driver matched to <strong>${escHtml(d._driverMatch.fullName)}</strong> &mdash; DoB &amp; DL auto-filled.</div>`;
   else if(d.driverName) html+=`<div class="banner warn" style="margin-bottom:10px">Driver "<strong>${escHtml(d.driverName)}</strong>" not found in employee list. Pick from the dropdown or fill manually.</div>`;
@@ -554,8 +623,9 @@ function renderForm(d){
       const [id,label,type]=def[k];
       const val=d[k]==null?'':d[k];
       const missing=(val===''||val===null);
-      const cls='field'+(['descriptionOfLoss','tp1','tp2'].includes(k)?' full':'')+(missing?' missing':'');
-      const flag=missing?'<span class="flag">NEEDS INPUT</span>':'';
+      const isUnc=!missing&&uncertain.includes(k);
+      const cls='field'+(['descriptionOfLoss','tp1','tp2'].includes(k)?' full':'')+(missing?' missing':(isUnc?' uncertain':''));
+      const flag=missing?'<span class="flag">NEEDS INPUT</span>':(isUnc?'<span class="check">⚠ DOUBLE-CHECK</span>':'');
       let input;
       if(type==='textarea') input=`<textarea id="f_${id}" oninput="onField('${id}',this.value)">${escHtml(val)}</textarea>`;
       else input=`<input id="f_${id}" type="${type==='date'?'text':'text'}" value="${escAttr(val)}" placeholder="${type==='date'?'YYYY-MM-DD':''}" oninput="onField('${id}',this.value)">`;
@@ -591,7 +661,9 @@ function pickUnit(i){
 function onField(id,val){
   state.extracted[id]=val;
   const w=document.getElementById('fw_'+id);
-  if(w){ w.classList.toggle('missing', val.trim()===''); }
+  if(w){ w.classList.toggle('missing', val.trim()===''); w.classList.remove('uncertain');
+    const c=w.querySelector('.check'); if(c)c.remove(); }
+  if(Array.isArray(state.extracted._uncertain)) state.extracted._uncertain=state.extracted._uncertain.filter(k=>k!==id);
 }
 
 /* ============================================================
@@ -633,6 +705,20 @@ function fmtDate(s){ const iso=isoDate(s); const m=iso.match(/\d{4}-\d{2}-\d{2}/
 
 async function generatePackage(){
   const d=state.extracted; const msg=document.getElementById('genMsg'); const btn=document.getElementById('genBtn');
+  // ---- Review gate: list blank + double-check fields before finalizing ----
+  const miss=[], unc=[];
+  FIELD_DEFS.forEach(([id,label])=>{
+    const val=d[id];
+    if(val==null||String(val).trim()==='') miss.push(label);
+    else if(Array.isArray(d._uncertain)&&d._uncertain.includes(id)) unc.push(label);
+  });
+  if(miss.length||unc.length){
+    let m='Review before finalizing this claim:\n';
+    if(unc.length) m+='\n⚠ Flagged to DOUBLE-CHECK ('+unc.length+') — the reader was unsure:\n  • '+unc.join('\n  • ')+'\n';
+    if(miss.length) m+='\nStill blank ('+miss.length+'):\n  • '+miss.join('\n  • ')+'\n';
+    m+='\nOK = finalize anyway.   Cancel = go back and fix.';
+    if(!confirm(m)) return;
+  }
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Building package...'; msg.innerHTML='';
   try{
     const ln=lastName(d.driverName), unit=clean(d.unitNumber||'NoUnit'), dt=fmtDate(d.dateOfLoss);
@@ -708,10 +794,13 @@ function buildAigHtml(d){
   const cell='border:1px solid #444;padding:4px 6px;vertical-align:top';
   const lbl='font-weight:bold;background:#eee;width:170px;'+cell;
   wrap.innerHTML=`
-   <div style="text-align:center;border-bottom:3px solid #367c2b;padding-bottom:6px;margin-bottom:8px">
-     <div style="font-size:15px;font-weight:bold;color:#367c2b">AIG CANADA — RISK MANAGEMENT REPORTING FORM</div>
-     <div style="font-size:12px">John Deere Canada and Associated Companies</div>
-     <div style="font-size:10px;color:#444">Send to: RMClaimsCA@aig.com &nbsp;|&nbsp; Policy No. RMBA 1245025 &nbsp;|&nbsp; AIG contact: Emily Feindel 1-800-387-4481</div>
+   <div style="border-bottom:3px solid #367c2b;padding-bottom:6px;margin-bottom:8px">
+     <img src="${LOGO}" style="height:34px;display:block;margin-bottom:6px">
+     <div style="text-align:center">
+       <div style="font-size:15px;font-weight:bold;color:#367c2b">AIG CANADA — RISK MANAGEMENT REPORTING FORM</div>
+       <div style="font-size:12px">John Deere Canada and Associated Companies</div>
+       <div style="font-size:10px;color:#444">Send to: RMClaimsCA@aig.com &nbsp;|&nbsp; Policy No. RMBA 1245025 &nbsp;|&nbsp; AIG contact: Emily Feindel 1-800-387-4481</div>
+     </div>
    </div>
    <table style="border-collapse:collapse;width:100%">
      <tr><td style="${lbl}">Date of Loss</td><td style="${cell}">${v(d.dateOfLoss)} ${d.timeOfLoss?('&nbsp; '+escHtml(d.timeOfLoss)):''}</td>
@@ -968,6 +1057,7 @@ async function trySeed(){
   }
 }
 (async function init(){
+  document.getElementById('brandLogo').src=LOGO;
   await trySeed();
   refreshKeyWarn(); renderMedia();
 })();

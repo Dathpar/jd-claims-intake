@@ -16,8 +16,15 @@ the file directly in a browser.
 ## How it works
 
 1. **Upload the accident report** — PDF, `.docx`, or `.jpg/.png`.
-2. **Read it** — the browser sends the document to Claude, which extracts every
-   readable field. Handwriting is read with Claude's vision.
+2. **Read it — two ways:**
+   - **Read with Claude** (needs an API key): extracts every readable field and
+     **flags anything it's unsure about** with a blue "⚠ DOUBLE-CHECK" marker so
+     you can verify it.
+   - **Enter manually** (no key, no cost): shows your report on screen next to a
+     blank form. Best accuracy for handwriting. Typed Word docs get their
+     narrative pre-filled for free.
+   Either way, a **review gate** lists every blank or flagged field and asks you
+   to confirm before the package is finalized.
 3. **Auto-fill from reference lists** — the driver is matched to the employee
    list (DOB, licence number) and the unit to the vehicle list (VIN, year/make/
    model, plate). Anything not found is **flagged for manual entry**.
