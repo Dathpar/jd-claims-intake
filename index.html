@@ -663,7 +663,8 @@ function renderForm(d){
       const flag=missing?'<span class="flag">NEEDS INPUT</span>':(isUnc?'<span class="check">⚠ DOUBLE-CHECK</span>':'');
       let input;
       if(type==='textarea') input=`<textarea id="f_${id}" oninput="onField('${id}',this.value)">${escHtml(val)}</textarea>`;
-      else input=`<input id="f_${id}" type="${type==='date'?'text':'text'}" value="${escAttr(val)}" placeholder="${type==='date'?'YYYY-MM-DD':''}" oninput="onField('${id}',this.value)">`;
+      else if(type==='date') input=`<input id="f_${id}" type="date" value="${escAttr(isoDate(val))}" oninput="onField('${id}',this.value)">`;
+      else input=`<input id="f_${id}" type="text" value="${escAttr(val)}" oninput="onField('${id}',this.value)">`;
       html+=`<div class="${cls}" id="fw_${id}"><label>${label}${flag}</label>${input}</div>`;
     });
     html+='</div>';
@@ -804,8 +805,40 @@ async function generatePackage(){
     const dl=document.getElementById('downloads');
     dl.innerHTML=`<div class="banner ok">Package ready &mdash; <strong>${attachments.length}</strong> files in <code>${escHtml(folder)}</code></div>`;
     addDownload(dl,'⬇ Download full claim package (ZIP)',zipBlob,zipName,true);
-    addDownload(dl,'⬇ Outlook draft only (.eml — double-click to open in Outlook)',new Blob([eml],{type:'message/rfc822'}),emlName,false);
     addDownload(dl,'⬇ AIG form only (PDF)',aigBlob,aigName,false);
+
+    // ---- Outlook: two ways ----
+    dl.insertAdjacentHTML('beforeend','<div class="section-title" style="margin-top:14px">Email to AIG</div>');
+    // (a) .eml with attachments already embedded (needs classic Outlook as the .eml handler)
+    addDownload(dl,'⬇ Outlook draft WITH attachments (.eml)',new Blob([eml],{type:'message/rfc822'}),emlName,false);
+    // (b) mailto: opens the default mail app immediately (attachments added by hand from the ZIP)
+    const subjM=`Auto Claim — John Deere Canada — ${d.driverName||'Driver'} / Unit ${d.unitNumber||'N/A'} / ${fmtDate(d.dateOfLoss)}`;
+    const bodyM=
+`Please find a new automobile claim for John Deere Canada (Policy RMBA 1245025).
+
+Driver: ${d.driverName||'-'}
+Unit number: ${d.unitNumber||'-'}
+Date/time of loss: ${[d.dateOfLoss,d.timeOfLoss].filter(Boolean).join(' ')||'-'}
+Location: ${d.lossLocation||'-'}
+Vehicle: ${[d.vehicleYear,d.vehicleMake,d.vehicleModel].filter(Boolean).join(' ')||'-'}
+VIN: ${d.vin||'-'}
+Injuries: ${d.injuryStatus||d.driverInjury||'-'}
+Police report #: ${d.policeOccurrence||'-'}
+Tow: ${d.towStatus||'-'}
+
+${(d.descriptionOfLoss||'').slice(0,800)}
+
+(Please attach the AIG form, summary, and photos/videos from the downloaded ZIP folder.)`;
+    const mailtoUrl=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subjM)}&body=${encodeURIComponent(bodyM)}`;
+    const mb=document.createElement('a');
+    mb.href=mailtoUrl; mb.className='btn'; mb.textContent='✉ Open Outlook now (then attach files)';
+    mb.style.cssText='display:inline-block;margin:0 10px 10px 0;text-decoration:none';
+    dl.appendChild(mb);
+    dl.insertAdjacentHTML('beforeend',
+      '<div class="banner info" style="margin-top:6px;font-size:12.5px">'
+      +'<strong>Which Outlook button?</strong> "Open Outlook now" pops your email open instantly with the summary filled in — then drag the files from the ZIP onto it. '
+      +'The ".eml WITH attachments" file already has everything attached, but it only opens correctly in <strong>classic Outlook</strong>: download it, then double-click. '
+      +'If double-clicking opens it as a read-only message (the "new" Outlook does this), right-click the file &rarr; Open with &rarr; <em>Outlook (classic)</em>, or just use "Open Outlook now" instead.</div>');
     msg.innerHTML='';
   }catch(err){
     console.error(err); msg.innerHTML=`<div class="banner err">Failed to build package: ${escHtml(err.message||String(err))}</div>`;
