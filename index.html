@@ -739,6 +739,24 @@ function lastName(name){
 function clean(s){ return (s||'').replace(/[^A-Za-z0-9]/g,'')||'NA'; }
 function fmtDate(s){ const iso=isoDate(s); const m=iso.match(/\d{4}-\d{2}-\d{2}/); return m?m[0]:new Date().toISOString().slice(0,10); }
 
+// Render an element to a PDF blob. The element MUST be attached to the live DOM
+// (off-screen is fine) or html2canvas captures a blank page.
+async function htmlToPdfBlob(el, opts){
+  const holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-10000px;top:0;background:#ffffff;padding:0;margin:0;z-index:-1';
+  holder.appendChild(el);
+  document.body.appendChild(holder);
+  // wait for any images (e.g. the logo) to finish decoding
+  await Promise.all([...el.querySelectorAll('img')].map(img=>
+    img.complete ? Promise.resolve() : new Promise(r=>{ img.onload=img.onerror=r; })));
+  await new Promise(r=>setTimeout(r,60));
+  try{
+    return await html2pdf().set(opts).from(el).outputPdf('blob');
+  } finally {
+    document.body.removeChild(holder);
+  }
+}
+
 async function generatePackage(){
   const d=state.extracted; const msg=document.getElementById('genMsg'); const btn=document.getElementById('genBtn');
   // ---- Review gate: list blank + double-check fields before finalizing ----
@@ -767,14 +785,13 @@ async function generatePackage(){
     document.getElementById('aigPreview').innerHTML=aigEl.outerHTML;
     document.getElementById('aigPreviewWrap').classList.remove('hidden');
     const aigName=`AIG_Claim_${base}.pdf`;
-    const aigBlob=await html2pdf().set({margin:[10,10,10,10],html2canvas:{scale:2},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}})
-      .from(aigEl).outputPdf('blob');
+    const aigBlob=await htmlToPdfBlob(aigEl,{margin:[10,10,10,10],html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'letter',orientation:'portrait'}});
     zip.file(folder+aigName, aigBlob);
 
     // 2. Summary PDF
     const sumEl=buildSummaryHtml(d);
     const sumName=`Claim_Summary_${base}.pdf`;
-    const sumBlob=await html2pdf().set({margin:[12,12,12,12],jsPDF:{unit:'mm',format:'letter'}}).from(sumEl).outputPdf('blob');
+    const sumBlob=await htmlToPdfBlob(sumEl,{margin:[12,12,12,12],html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'letter'}});
     zip.file(folder+sumName, sumBlob);
 
     // 3. Media (renamed)
